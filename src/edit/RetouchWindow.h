@@ -140,6 +140,7 @@ private:
     // View menu togglable panels.
     QToolBar *m_toolsBar = nullptr; // left icon bar: Zoom / Crop / Spot Heal
     QDockWidget *m_adjustmentsDock = nullptr;
+    QDockWidget *m_orientationDock = nullptr;
     QDockWidget *m_historyDock = nullptr;
     QListWidget *m_historyList = nullptr;
     QDockWidget *m_levelsDock = nullptr;
@@ -161,6 +162,7 @@ private:
     void onSaveViewTemplate();
     void onDeleteViewTemplate();
     void restoreWindowState(); // deferred restoreGeometry()/restoreState(), run after the window is shown
+    void buildOrientationDock();
     void buildHistoryDock();
     void buildLevelsDock();
     void refreshHistoryPanel();  // rebuild the list from the current tab

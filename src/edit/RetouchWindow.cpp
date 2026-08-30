@@ -938,6 +938,7 @@ RetouchWindow::RetouchWindow(QWidget *parent) : QMainWindow(parent) {
     buildToolPanel();
     buildToolOptionsBar();
     buildDock();
+    buildOrientationDock();
     buildHistoryDock();
     buildLevelsDock();
     buildLayersDock();
@@ -1068,6 +1069,7 @@ void RetouchWindow::buildViewMenu() {
     auto *viewMenu = menuBar()->addMenu("View");
     if (m_toolsBar) viewMenu->addAction(m_toolsBar->toggleViewAction());
     if (m_adjustmentsDock) viewMenu->addAction(m_adjustmentsDock->toggleViewAction());
+    if (m_orientationDock) viewMenu->addAction(m_orientationDock->toggleViewAction());
     if (m_historyDock) viewMenu->addAction(m_historyDock->toggleViewAction());
     if (m_levelsDock) viewMenu->addAction(m_levelsDock->toggleViewAction());
     if (m_layersDock) viewMenu->addAction(m_layersDock->toggleViewAction());
@@ -1252,13 +1254,15 @@ void RetouchWindow::onDeleteViewTemplate() {
 // mode-driven visibility (editing docks hidden in Tether mode; Controls shown
 // there instead). Used on first launch (no saved state) and by Reset Panels.
 void RetouchWindow::applyDefaultDockLayout() {
-    for (QDockWidget *d : {m_levelsDock, m_adjustmentsDock, m_historyDock,
-                           m_layersDock, m_controlsDock}) {
+    for (QDockWidget *d : {m_levelsDock, m_adjustmentsDock, m_orientationDock,
+                           m_historyDock, m_layersDock, m_controlsDock}) {
         if (d) {
             d->setFloating(false);
             addDockWidget(Qt::RightDockWidgetArea, d);
         }
     }
+    if (m_adjustmentsDock && m_orientationDock)
+        tabifyDockWidget(m_adjustmentsDock, m_orientationDock);
     if (m_adjustmentsDock && m_historyDock)
         tabifyDockWidget(m_adjustmentsDock, m_historyDock);
     if (m_adjustmentsDock && m_layersDock)
@@ -1269,10 +1273,11 @@ void RetouchWindow::applyDefaultDockLayout() {
         addToolBar(Qt::LeftToolBarArea, m_toolsBar);
 
     // Default visibility for the persistent editing docks.
-    if (m_adjustmentsDock) m_adjustmentsDock->show();
-    if (m_historyDock)     m_historyDock->show();
-    if (m_levelsDock)      m_levelsDock->show();
-    if (m_layersDock)      m_layersDock->show();
+    if (m_adjustmentsDock)  m_adjustmentsDock->show();
+    if (m_orientationDock)  m_orientationDock->show();
+    if (m_historyDock)      m_historyDock->show();
+    if (m_levelsDock)       m_levelsDock->show();
+    if (m_layersDock)       m_layersDock->show();
 
     // Let mode/tool chrome have the final say on editing-dock/Controls/Tools
     // visibility.
@@ -2504,8 +2509,24 @@ void RetouchWindow::buildDock() {
     m_lightIntensity = makeSlider(lightForm, "Light Intensity");
     outer->addLayout(lightForm);
 
-    outer->addSpacing(8);
-    outer->addWidget(new QLabel("<b>Orientation</b>"));
+    outer->addStretch(1);
+
+    // Many controls now — make the dock scrollable.
+    auto *scroll = new QScrollArea;
+    scroll->setWidgetResizable(true);
+    scroll->setWidget(panel);
+    dock->setWidget(scroll);
+    addDockWidget(Qt::RightDockWidgetArea, dock);
+}
+
+void RetouchWindow::buildOrientationDock() {
+    auto *dock = new QDockWidget("Orientation", this);
+    m_orientationDock = dock;
+    dock->setObjectName("orientationDock");
+    dock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
+
+    auto *panel = new QWidget;
+    auto *outer = new QVBoxLayout(panel);
     auto *rotRow = new QHBoxLayout;
     m_rotLeft = new QPushButton("⟲ 90°");
     m_rotRight = new QPushButton("⟳ 90°");
@@ -2518,6 +2539,7 @@ void RetouchWindow::buildDock() {
     flipRow->addWidget(m_flipH);
     flipRow->addWidget(m_flipV);
     outer->addLayout(flipRow);
+    outer->addStretch(1);
 
     // Orientation handlers mutate the current tab's adjustments.
     auto mutateCurrent = [this](std::function<void(Adjustments &)> fn) {
@@ -2540,14 +2562,10 @@ void RetouchWindow::buildDock() {
         mutateCurrent([](Adjustments &a) { a.flipV = !a.flipV; });
     });
 
-    outer->addStretch(1);
-
-    // Many controls now — make the dock scrollable.
-    auto *scroll = new QScrollArea;
-    scroll->setWidgetResizable(true);
-    scroll->setWidget(panel);
-    dock->setWidget(scroll);
+    dock->setWidget(panel);
     addDockWidget(Qt::RightDockWidgetArea, dock);
+    // Stack under the Adjustments dock as a tab if both are on the right.
+    if (m_adjustmentsDock) tabifyDockWidget(m_adjustmentsDock, dock);
 }
 
 void RetouchWindow::buildHistoryDock() {
