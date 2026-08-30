@@ -81,3 +81,7 @@ killall gvfsd-gphoto2
   exposes. Run `gphoto2 --list-config` to see your model's exact names.
 - All libgphoto2 access runs on a dedicated worker thread; the GUI talks to it
   only through queued signals/slots (`CameraController`).
+
+## License
+
+Licensed under the [GNU General Public License v3.0](LICENSE).
