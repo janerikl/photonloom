@@ -621,6 +621,22 @@ void rasterizeBrush(const Mask &m, std::vector<uchar> &cov, int w, int h,
         }
     };
 
+    // Pressure-sensitive width: matches the tablet driver's own
+    // pressure-preview widget — a bare touch tapers to a hairline and
+    // width builds up to full radius as pressure increases. Shared by
+    // every dab (Pen and Brush alike) so both tools feel the same under
+    // the stylus; only Pen additionally varies hardness/opacity/grain by
+    // pencil grade (see penParams below).
+    auto pressureRadius = [&](const BrushStrokePoint &sp) {
+        constexpr double kMinFrac = 0.04;
+        constexpr double kEaseExp = 0.6; // ease-in: width ramps up faster at low/mid pressure
+        const double pressure = clampd(sp.pressure, 0.0, 1.0);
+        const double eased = std::pow(pressure, kEaseExp);
+        const double frac = kMinFrac + (1.0 - kMinFrac) * eased;
+        const double baseRad = std::max(0.5, sp.radius * W);
+        return std::max(0.5, baseRad * frac);
+    };
+
     // Pen: derive effective radius/hardness/opacity-multiplier/grain from
     // (sp.radius, sp.hardness, sp.penGrade, sp.pressure) — all captured
     // per-dab, since Pen and Brush dabs can be interleaved in the same
@@ -638,16 +654,7 @@ void rasterizeBrush(const Mask &m, std::vector<uchar> &cov, int w, int h,
         constexpr double kSoftGrain = 0.22;
         constexpr double kHardGrain = 0.0;
         grain = kSoftGrain + (kHardGrain - kSoftGrain) * t;
-        // Radius pressure-sensitivity: soft grades vary radius more with
-        // pressure (50%-100% of base radius across pressure 0..1); hard
-        // grades vary less (85%-100%).
-        constexpr double kSoftMinFrac = 0.5;
-        constexpr double kHardMinFrac = 0.85;
-        const double minFrac = kSoftMinFrac + (kHardMinFrac - kSoftMinFrac) * t;
-        const double pressure = clampd(sp.pressure, 0.0, 1.0);
-        const double frac = minFrac + (1.0 - minFrac) * pressure;
-        const double baseRad = std::max(0.5, sp.radius * W);
-        effRad = std::max(0.5, baseRad * frac);
+        effRad = pressureRadius(sp);
     };
 
     double touchedX0 = 1e18, touchedY0 = 1e18, touchedX1 = -1e18, touchedY1 = -1e18;
@@ -660,7 +667,7 @@ void rasterizeBrush(const Mask &m, std::vector<uchar> &cov, int w, int h,
     for (int i = startIdx; i < m.stroke.size(); ++i) {
         const BrushStrokePoint &sp = m.stroke[i];
         if (sp.newStroke) ++runCounter;
-        double rad = std::max(0.5, sp.radius * W);
+        double rad = pressureRadius(sp);
         double hardness = sp.hardness;
         double opacityMul = 1.0, grain = 0.0;
         if (sp.isPen) penParams(sp, rad, hardness, opacityMul, grain);
