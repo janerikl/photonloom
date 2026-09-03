@@ -1,5 +1,6 @@
 #include "edit/TiffExport.h"
 
+#include <QColorSpace>
 #include <QImage>
 #include <QVector>
 
@@ -31,6 +32,11 @@ bool writeTiff16(const QImage &imgIn, const QString &path) {
     if (hasAlpha) {
         uint16_t extra[1] = {EXTRASAMPLE_UNASSALPHA};
         TIFFSetField(tif, TIFFTAG_EXTRASAMPLES, 1, extra);
+    }
+    if (img.colorSpace().isValid()) {
+        const QByteArray icc = img.colorSpace().iccProfile();
+        if (!icc.isEmpty())
+            TIFFSetField(tif, TIFFTAG_ICCPROFILE, uint32_t(icc.size()), icc.constData());
     }
 
     QVector<quint16> row(int(width) * samplesPerPixel);

@@ -1,13 +1,18 @@
 // Covers writeTiff16() writing genuine 16-bit-per-channel TIFF data (not
 // dithered to 8-bit like the JPEG/PNG export path), added when TIFF export
 // was introduced so a future regression that routes TIFF through
-// ditherTo8Bit() or otherwise loses precision gets caught.
+// ditherTo8Bit() or otherwise loses precision gets caught. Also covers ICC
+// profile embedding, added alongside color-management support so a future
+// regression that drops or mismatches the profile gets caught.
 #include "edit/TiffExport.h"
+#include "edit/ColorSpace.h"
 
+#include <QByteArray>
 #include <QCoreApplication>
 #include <QImage>
 #include <QTemporaryDir>
 #include <cassert>
+#include <cstring>
 
 #include <tiffio.h>
 
@@ -63,5 +68,29 @@ int main(int argc, char **argv) {
     }
 
     TIFFClose(tif);
+
+    // ICC profile embedding: a QImage tagged with Adobe RGB should round-trip
+    // through writeTiff16() with an exactly-matching TIFFTAG_ICCPROFILE blob.
+    {
+        QImage tagged(2, 2, QImage::Format_RGBA64);
+        tagged.fill(QColor(128, 64, 200));
+        const QColorSpace adobeRgb = toQColorSpace(WorkingColorSpace::AdobeRGB);
+        tagged.setColorSpace(adobeRgb);
+        const QByteArray expectedIcc = adobeRgb.iccProfile();
+        assert(!expectedIcc.isEmpty());
+
+        QString iccPath = dir.filePath("out_icc.tif");
+        assert(writeTiff16(tagged, iccPath));
+
+        TIFF *tif2 = TIFFOpen(iccPath.toUtf8().constData(), "r");
+        assert(tif2);
+        uint32_t iccSize = 0;
+        const void *iccData = nullptr;
+        assert(TIFFGetField(tif2, TIFFTAG_ICCPROFILE, &iccSize, &iccData));
+        assert(int(iccSize) == expectedIcc.size());
+        assert(memcmp(iccData, expectedIcc.constData(), iccSize) == 0);
+        TIFFClose(tif2);
+    }
+
     return 0;
 }

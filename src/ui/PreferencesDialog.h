@@ -2,6 +2,8 @@
 
 #include <QDialog>
 
+#include "edit/ColorSpace.h"
+
 class QComboBox;
 class QSpinBox;
 class QPushButton;
@@ -45,6 +47,7 @@ private:
     QSpinBox *m_frameW = nullptr;
     QSpinBox *m_frameH = nullptr;
     QPushButton *m_calibrate = nullptr;
+    QComboBox *m_workingColorSpace = nullptr;
     QTreeWidget *m_shortcutsTree = nullptr;
     QPushButton *m_resetShortcut = nullptr;
     QPushButton *m_resetAllShortcuts = nullptr;
@@ -54,3 +57,9 @@ private:
 // model's built-in default, else 640x426). Shared by the dialog and startup
 // seeding in RetouchWindow.
 void afFrameForModel(const QString &id, int &w, int &h);
+
+// Global default working color space applied to newly-opened/newly-decoded
+// RAW files (does not retroactively affect already-open tabs). Shared by the
+// dialog and RetouchWindow's open/new-tab flows.
+WorkingColorSpace defaultWorkingColorSpace();
+void setDefaultWorkingColorSpace(WorkingColorSpace space);

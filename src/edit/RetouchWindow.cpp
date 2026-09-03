@@ -3378,7 +3378,7 @@ void RetouchWindow::addToFilmstrip(const QString &path) {
 
 void RetouchWindow::createUntitledTab(const QSize &size) {
     QString key = QString("untitled:%1").arg(++m_untitledCounter);
-    auto *tab = new RetouchTab(size);
+    auto *tab = new RetouchTab(size, nullptr, defaultWorkingColorSpace());
     m_openTabs.insert(key, tab);
     int idx = m_tabs->addTab(tab, QString("Untitled-%1").arg(m_untitledCounter));
     m_tabs->setCurrentIndex(idx);
@@ -3409,7 +3409,7 @@ void RetouchWindow::openPhoto(const QString &path) {
         return;
     }
 
-    auto *tab = new RetouchTab(path);
+    auto *tab = new RetouchTab(path, nullptr, defaultWorkingColorSpace());
     m_openTabs.insert(path, tab);
     int idx = m_tabs->addTab(tab, QFileInfo(path).fileName());
     m_tabs->setCurrentIndex(idx);
@@ -4189,6 +4189,7 @@ void RetouchWindow::onExport() {
     }
     QImage resized = applyExportResize(rendered, preset);
     QImage out = preset.format == ExportPreset::TIFF16 ? resized : ditherTo8Bit(resized);
+    out.setColorSpace(toQColorSpace(tab->workingColorSpace()));
 
     QFileInfo src(tab->path());
     QDir editedDir(src.absolutePath() + "/edited");

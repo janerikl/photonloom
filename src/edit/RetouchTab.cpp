@@ -83,12 +83,17 @@ double defaultBrushRadiusNorm(int imageWidth) {
 }
 } // namespace
 
-RetouchTab::RetouchTab(const QString &path, QWidget *parent)
-    : QWidget(parent), m_path(path) {
+RetouchTab::RetouchTab(const QString &path, QWidget *parent, WorkingColorSpace defaultSpace)
+    : QWidget(parent), m_path(path),
+      m_workingColorSpace(EditSidecar::exists(path) ? EditSidecar::loadWorkingColorSpace(path)
+                                                     : defaultSpace) {
     // A self-contained project file carries its own base pixels (no
     // external photo/RAW to decode), so it takes a completely different,
     // synchronous load path instead of the RawLoader/QFutureWatcher one below.
     if (path.endsWith(QStringLiteral(".ploom"), Qt::CaseInsensitive)) {
+        // Project base pixels are stored as 8-bit PNG, so working-space
+        // gamut selection doesn't apply here — always sRGB.
+        m_workingColorSpace = WorkingColorSpace::sRGB;
         QImage base;
         const bool ok = EditSidecar::loadProject(path, base, m_adj);
         for (const Mask &m : m_adj.masks) {
@@ -130,11 +135,11 @@ RetouchTab::RetouchTab(const QString &path, QWidget *parent)
     m_watcher = new QFutureWatcher<QImage>(this);
     connect(m_watcher, &QFutureWatcher<QImage>::finished, this,
             &RetouchTab::onDecodeFinished);
-    m_watcher->setFuture(QtConcurrent::run(RawLoader::loadAny, m_path));
+    m_watcher->setFuture(QtConcurrent::run(RawLoader::loadAny, m_path, m_workingColorSpace));
 }
 
-RetouchTab::RetouchTab(const QSize &blankSize, QWidget *parent)
-    : QWidget(parent), m_path(QString()) {
+RetouchTab::RetouchTab(const QSize &blankSize, QWidget *parent, WorkingColorSpace defaultSpace)
+    : QWidget(parent), m_path(QString()), m_workingColorSpace(defaultSpace) {
     m_base = QImage(blankSize, QImage::Format_ARGB32);
     m_base.fill(Qt::transparent);
     // A blank new document has no photo to hold, so its first layer is a
@@ -424,6 +429,7 @@ void RetouchTab::saveEdits() {
         return;
     }
     EditSidecar::save(m_path, m_adj);
+    EditSidecar::saveWorkingColorSpace(m_path, m_workingColorSpace);
     // Cache the edited look so the filmstrip reflects it across sessions.
     if (!m_lastEdited.isNull())
         EditSidecar::saveThumbnail(m_path, m_lastEdited);
@@ -2500,7 +2506,7 @@ void RetouchTab::kickoffImageLayerDecode(const QString &path) {
             emit masksChanged();
         }
     });
-    watcher->setFuture(QtConcurrent::run(RawLoader::loadAny, path));
+    watcher->setFuture(QtConcurrent::run(RawLoader::loadAny, path, WorkingColorSpace::sRGB));
 }
 
 // Asset-stamp cutouts are small app-managed PNGs (not RAW photos), so a

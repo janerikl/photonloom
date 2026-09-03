@@ -13,6 +13,7 @@
 #include <QElapsedTimer>
 
 #include "edit/Adjustments.h"
+#include "edit/ColorSpace.h"
 
 class ImageCanvas;
 class QTimer;
@@ -64,11 +65,17 @@ private:
 class RetouchTab : public QWidget {
     Q_OBJECT
 public:
-    explicit RetouchTab(const QString &path, QWidget *parent = nullptr);
-    explicit RetouchTab(const QSize &blankSize, QWidget *parent = nullptr); // File > New
+    // `defaultSpace` is the working color space to decode with when there's
+    // no sidecar override yet (i.e. the current global Preferences default at
+    // open time) — see ColorSpace.h.
+    explicit RetouchTab(const QString &path, QWidget *parent = nullptr,
+                        WorkingColorSpace defaultSpace = WorkingColorSpace::sRGB);
+    explicit RetouchTab(const QSize &blankSize, QWidget *parent = nullptr,
+                        WorkingColorSpace defaultSpace = WorkingColorSpace::sRGB); // File > New
     ~RetouchTab() override;
 
     QString path() const { return m_path; }
+    WorkingColorSpace workingColorSpace() const { return m_workingColorSpace; }
     ImageCanvas *canvas() const { return m_canvas; }
     void assignPath(const QString &path); // File > New's first save: adopt a real backing path
     Adjustments adjustments() const { return m_adj; }
@@ -432,6 +439,9 @@ private:
     QString m_path;
     QImage m_base;   // full-res decoded RAW (immutable)
     Adjustments m_adj;
+    // Working color space this tab's RAW was decoded with (or sRGB for
+    // blank/project tabs) — set once at construction, read by export.
+    WorkingColorSpace m_workingColorSpace = WorkingColorSpace::sRGB;
 
     bool m_cropMode = false;
     bool m_maskMode = false;

@@ -16,9 +16,12 @@ namespace {
 // source size+mtime, so re-exporting/replacing the NEF picks up fresh data.
 QString cachePathFor(const QString &rawPath) { return rawPath + QStringLiteral(".nte.rawcache"); }
 
-constexpr quint32 kCacheMagic = 0x4E524331; // "NRC1"
+// Bumped from NRC1: the cache now also keys on working color space (a stale
+// NRC1 file has no such field and would otherwise be silently reused for
+// whichever space is requested first, mismatching its actual sRGB decode).
+constexpr quint32 kCacheMagic = 0x4E524332; // "NRC2"
 
-QImage loadFromCache(const QString &rawPath) {
+QImage loadFromCache(const QString &rawPath, WorkingColorSpace space) {
     const QFileInfo srcInfo(rawPath);
     QFile f(cachePathFor(rawPath));
     if (!f.open(QIODevice::ReadOnly)) return QImage();
@@ -27,11 +30,12 @@ QImage loadFromCache(const QString &rawPath) {
     in.setVersion(QDataStream::Qt_6_0);
     quint32 magic = 0;
     qint64 srcSize = 0, srcMTime = 0;
-    qint32 width = 0, height = 0, bytesPerLine = 0, format = 0;
-    in >> magic >> srcSize >> srcMTime >> width >> height >> bytesPerLine >> format;
+    qint32 width = 0, height = 0, bytesPerLine = 0, format = 0, cachedSpace = 0;
+    in >> magic >> srcSize >> srcMTime >> width >> height >> bytesPerLine >> format >> cachedSpace;
     if (in.status() != QDataStream::Ok || magic != kCacheMagic) return QImage();
     if (srcSize != srcInfo.size() || srcMTime != srcInfo.lastModified().toMSecsSinceEpoch())
         return QImage(); // source changed since the cache was written
+    if (cachedSpace != static_cast<qint32>(space)) return QImage(); // wrong working space
 
     QImage img(width, height, static_cast<QImage::Format>(format));
     if (img.isNull()) return QImage();
@@ -39,10 +43,11 @@ QImage loadFromCache(const QString &rawPath) {
         if (in.readRawData(reinterpret_cast<char *>(img.scanLine(y)), bytesPerLine) != bytesPerLine)
             return QImage();
     }
+    img.setColorSpace(toQColorSpace(space));
     return img;
 }
 
-void saveToCache(const QString &rawPath, const QImage &img) {
+void saveToCache(const QString &rawPath, const QImage &img, WorkingColorSpace space) {
     const QFileInfo srcInfo(rawPath);
     QFile f(cachePathFor(rawPath));
     if (!f.open(QIODevice::WriteOnly)) return;
@@ -52,19 +57,20 @@ void saveToCache(const QString &rawPath, const QImage &img) {
     out << kCacheMagic << static_cast<qint64>(srcInfo.size())
         << static_cast<qint64>(srcInfo.lastModified().toMSecsSinceEpoch())
         << static_cast<qint32>(img.width()) << static_cast<qint32>(img.height())
-        << static_cast<qint32>(img.bytesPerLine()) << static_cast<qint32>(img.format());
+        << static_cast<qint32>(img.bytesPerLine()) << static_cast<qint32>(img.format())
+        << static_cast<qint32>(space);
     for (int y = 0; y < img.height(); ++y)
         out.writeRawData(reinterpret_cast<const char *>(img.constScanLine(y)), img.bytesPerLine());
 }
 
-QImage decode(const QString &rawPath) {
+QImage decode(const QString &rawPath, WorkingColorSpace space) {
     LibRaw raw;
 
-    // 16-bit sRGB output with camera white balance — a natural-looking base.
+    // 16-bit output with camera white balance — a natural-looking base.
     // 16-bit preserves shadow tonal resolution that 8-bit throws away, which
     // otherwise reappears as banding when shadows/brightness are pushed later.
     raw.imgdata.params.output_bps = 16;
-    raw.imgdata.params.output_color = 1; // sRGB
+    raw.imgdata.params.output_color = libRawOutputColor(space);
     raw.imgdata.params.use_camera_wb = 1;
     raw.imgdata.params.no_auto_bright = 0;
 
@@ -99,6 +105,7 @@ QImage decode(const QString &rawPath) {
             }
         }
         result = img.copy(); // detach from the loop-local buffer lifetime
+        result.setColorSpace(toQColorSpace(space));
     }
 
     LibRaw::dcraw_clear_mem(out);
@@ -108,22 +115,26 @@ QImage decode(const QString &rawPath) {
 
 } // namespace
 
-QImage load(const QString &rawPath) {
-    QImage cached = loadFromCache(rawPath);
+QImage load(const QString &rawPath, WorkingColorSpace space) {
+    QImage cached = loadFromCache(rawPath, space);
     if (!cached.isNull()) return cached;
 
-    QImage img = decode(rawPath);
-    if (!img.isNull()) saveToCache(rawPath, img);
+    QImage img = decode(rawPath, space);
+    if (!img.isNull()) saveToCache(rawPath, img, space);
     return img;
 }
 
-QImage loadAny(const QString &path) {
-    QImage img = load(path);
+QImage loadAny(const QString &path, WorkingColorSpace space) {
+    QImage img = load(path, space);
     if (!img.isNull()) return img;
     // Qt's JPEG/PNG decoders only ever yield 8-bit data, but upconvert to
     // RGBA64 so every image reaching the Adjustments pipeline is uniformly
-    // 16-bit — callers never need to branch on source bit depth.
-    return QImage(path).convertToFormat(QImage::Format_RGBA64);
+    // 16-bit — callers never need to branch on source bit depth. These
+    // sources aren't run through LibRaw's gamut conversion, so tag sRGB
+    // regardless of the requested working space.
+    QImage img8 = QImage(path).convertToFormat(QImage::Format_RGBA64);
+    img8.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    return img8;
 }
 
 } // namespace RawLoader

@@ -4,6 +4,7 @@
 #include <QImage>
 
 #include "edit/Adjustments.h"
+#include "edit/ColorSpace.h"
 
 // Non-destructive edits are stored in a JSON sidecar next to the RAW file
 // (`<image>.nte.json`), so reopening a photo or session restores them.
@@ -27,6 +28,13 @@ bool loadProject(const QString &path, QImage &base, Adjustments &out);
 // 0 = unrated. loadRating returns 0 if no sidecar or no rating field exists.
 int loadRating(const QString &imagePath);
 bool saveRating(const QString &imagePath, int rating);
+
+// The working color space the photo was decoded with, stored alongside the
+// adjustments in the same sidecar JSON (preserved across save() calls, like
+// rating). Defaults to sRGB if no sidecar or no field exists — i.e. for
+// photos decoded before this field existed.
+WorkingColorSpace loadWorkingColorSpace(const QString &imagePath);
+bool saveWorkingColorSpace(const QString &imagePath, WorkingColorSpace space);
 
 // A small cached JPEG rendering of the edited photo (`<image>.nte.thumb.jpg`),
 // so the filmstrip can show the edited look without re-decoding the RAW and

@@ -742,11 +742,16 @@ bool exists(const QString &imagePath) {
 }
 
 bool save(const QString &imagePath, const Adjustments &a) {
-    // Rating lives in the same sidecar file but isn't part of Adjustments, so
-    // carry over whatever was there before this rewrite.
+    // Rating and working color space live in the same sidecar file but
+    // aren't part of Adjustments, so carry over whatever was there before
+    // this rewrite (saveWorkingColorSpace() is the only writer of the latter
+    // — see RetouchTab::saveEdits()).
     int existingRating = loadRating(imagePath);
+    bool hadSidecar = exists(imagePath);
+    WorkingColorSpace existingSpace = loadWorkingColorSpace(imagePath);
     QJsonObject o = adjustmentsToJson(a);
     if (existingRating > 0) o["rating"] = existingRating;
+    if (hadSidecar) o["workingColorSpace"] = int(existingSpace);
 
     QFile f(pathFor(imagePath));
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
@@ -848,6 +853,34 @@ bool saveRating(const QString &imagePath, int rating) {
         o["rating"] = rating;
     else
         o.remove("rating");
+    if (!o.contains("version")) o["version"] = 7;
+
+    QFile out(pathFor(imagePath));
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
+    out.write(QJsonDocument(o).toJson(QJsonDocument::Indented));
+    return true;
+}
+
+WorkingColorSpace loadWorkingColorSpace(const QString &imagePath) {
+    QFile f(pathFor(imagePath));
+    if (!f.open(QIODevice::ReadOnly)) return WorkingColorSpace::sRGB;
+    QJsonParseError err;
+    QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) return WorkingColorSpace::sRGB;
+    return static_cast<WorkingColorSpace>(
+        doc.object()["workingColorSpace"].toInt(int(WorkingColorSpace::sRGB)));
+}
+
+bool saveWorkingColorSpace(const QString &imagePath, WorkingColorSpace space) {
+    QFile f(pathFor(imagePath));
+    QJsonObject o;
+    if (f.open(QIODevice::ReadOnly)) {
+        QJsonParseError err;
+        QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+        if (err.error == QJsonParseError::NoError && doc.isObject()) o = doc.object();
+        f.close();
+    }
+    o["workingColorSpace"] = int(space);
     if (!o.contains("version")) o["version"] = 7;
 
     QFile out(pathFor(imagePath));

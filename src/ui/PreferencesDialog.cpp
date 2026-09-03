@@ -31,6 +31,17 @@ void afFrameForModel(const QString &id, int &w, int &h) {
     h = s.value(QString("af/models/%1/frameHeight").arg(id), dh).toInt();
 }
 
+WorkingColorSpace defaultWorkingColorSpace() {
+    QSettings s;
+    return static_cast<WorkingColorSpace>(
+        s.value("colorSpace/workingSpace", int(WorkingColorSpace::sRGB)).toInt());
+}
+
+void setDefaultWorkingColorSpace(WorkingColorSpace space) {
+    QSettings s;
+    s.setValue("colorSpace/workingSpace", int(space));
+}
+
 PreferencesDialog::PreferencesDialog(QWidget *parent) : QDialog(parent) {
     setWindowTitle("Preferences");
     resize(560, 420);
@@ -109,6 +120,28 @@ QWidget *PreferencesDialog::buildGeneralPage() {
         "Values are remembered per model.");
     hint->setWordWrap(true);
     layout->addWidget(hint);
+
+    m_workingColorSpace = new QComboBox;
+    m_workingColorSpace->addItem(workingColorSpaceLabel(WorkingColorSpace::sRGB),
+                                  int(WorkingColorSpace::sRGB));
+    m_workingColorSpace->addItem(workingColorSpaceLabel(WorkingColorSpace::AdobeRGB),
+                                  int(WorkingColorSpace::AdobeRGB));
+    m_workingColorSpace->addItem(workingColorSpaceLabel(WorkingColorSpace::ProPhotoRGB),
+                                  int(WorkingColorSpace::ProPhotoRGB));
+    m_workingColorSpace->setCurrentIndex(
+        m_workingColorSpace->findData(int(defaultWorkingColorSpace())));
+    form->addRow("Working color space:", m_workingColorSpace);
+    connect(m_workingColorSpace, &QComboBox::currentIndexChanged, this, [this](int) {
+        setDefaultWorkingColorSpace(
+            static_cast<WorkingColorSpace>(m_workingColorSpace->currentData().toInt()));
+    });
+
+    auto *colorHint = new QLabel(
+        "Applies to newly-opened or newly-decoded RAW files only — already-open "
+        "tabs keep the working space they were decoded with.");
+    colorHint->setWordWrap(true);
+    layout->addWidget(colorHint);
+
     layout->addStretch(1);
     return page;
 }
