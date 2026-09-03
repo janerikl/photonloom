@@ -17,6 +17,7 @@ pkg_check_modules(GPHOTO2 REQUIRED IMPORTED_TARGET libgphoto2)
 pkg_check_modules(LIBRAW REQUIRED IMPORTED_TARGET libraw)
 pkg_check_modules(LIBZIP REQUIRED IMPORTED_TARGET libzip)
 pkg_check_modules(LIBMTP REQUIRED IMPORTED_TARGET libmtp)
+pkg_check_modules(LIBTIFF REQUIRED IMPORTED_TARGET libtiff-4)
 
 add_executable(photonloom
     src/main.cpp
@@ -63,6 +64,7 @@ add_executable(photonloom
     src/edit/RecentFiles.cpp
     src/edit/RecentProjects.cpp
     src/edit/ExportDialog.cpp
+    src/edit/TiffExport.cpp
     src/edit/CurveEditor.cpp
     src/edit/EditSidecar.cpp
     src/edit/ZipFile.cpp
@@ -80,7 +82,7 @@ add_executable(photonloom
 
 target_include_directories(photonloom PRIVATE src)
 target_link_libraries(photonloom PRIVATE
-    Qt6::Widgets Qt6::Concurrent Qt6::Svg PkgConfig::GPHOTO2 PkgConfig::LIBRAW PkgConfig::LIBZIP PkgConfig::LIBMTP)
+    Qt6::Widgets Qt6::Concurrent Qt6::Svg PkgConfig::GPHOTO2 PkgConfig::LIBRAW PkgConfig::LIBZIP PkgConfig::LIBMTP PkgConfig::LIBTIFF)
 
 # `sudo cmake --install build` copies the binary to ${CMAKE_INSTALL_PREFIX}/bin
 # (default /usr/local/bin).
@@ -149,3 +151,10 @@ target_link_libraries(layer_reorder_test PRIVATE Qt6::Widgets Qt6::Concurrent Qt
 target_compile_options(layer_reorder_test PRIVATE -UNDEBUG)
 add_test(NAME layer_reorder_test COMMAND layer_reorder_test)
 set_tests_properties(layer_reorder_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(export_tiff_test tests/ExportTiffTest.cpp src/edit/TiffExport.cpp)
+target_include_directories(export_tiff_test PRIVATE src)
+target_link_libraries(export_tiff_test PRIVATE Qt6::Widgets PkgConfig::LIBTIFF)
+target_compile_options(export_tiff_test PRIVATE -UNDEBUG)
+add_test(NAME export_tiff_test COMMAND export_tiff_test)
+set_tests_properties(export_tiff_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

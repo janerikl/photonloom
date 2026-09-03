@@ -25,6 +25,7 @@ ExportDialog::ExportDialog(ExportPresetStore *store, QWidget *parent)
     m_formatCombo = new QComboBox;
     m_formatCombo->addItem("JPEG", int(ExportPreset::JPEG));
     m_formatCombo->addItem("PNG", int(ExportPreset::PNG));
+    m_formatCombo->addItem("TIFF (16-bit)", int(ExportPreset::TIFF16));
     form->addRow("Format:", m_formatCombo);
 
     m_longEdge = new QSpinBox;

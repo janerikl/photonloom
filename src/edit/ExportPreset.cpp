@@ -25,6 +25,7 @@ QList<ExportPreset> ExportPresetStore::builtins() {
     add("Web 2048px", ExportPreset::JPEG, 2048, 85);
     add("Email 1024px", ExportPreset::JPEG, 1024, 80);
     add("Print (long edge 3000px)", ExportPreset::JPEG, 3000, 95);
+    add("Full size / 16-bit TIFF", ExportPreset::TIFF16, 0, 100);
     return b;
 }
 

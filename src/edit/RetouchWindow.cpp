@@ -3,6 +3,7 @@
 #include "edit/RetouchTab.h"
 #include "edit/ImageCanvas.h"
 #include "edit/ExportDialog.h"
+#include "edit/TiffExport.h"
 #include "edit/CurveEditor.h"
 #include "edit/EditSidecar.h"
 #include "edit/RecentSessions.h"
@@ -4186,22 +4187,24 @@ void RetouchWindow::onExport() {
         QMessageBox::warning(this, "Export", "Nothing to export.");
         return;
     }
-    QImage out = ditherTo8Bit(applyExportResize(rendered, preset));
+    QImage resized = applyExportResize(rendered, preset);
+    QImage out = preset.format == ExportPreset::TIFF16 ? resized : ditherTo8Bit(resized);
 
     QFileInfo src(tab->path());
     QDir editedDir(src.absolutePath() + "/edited");
     editedDir.mkpath(".");
     QString suggested =
         editedDir.filePath(src.completeBaseName() + "." + preset.extension());
-    QString filter = preset.format == ExportPreset::PNG ? "PNG (*.png)"
-                                                        : "JPEG (*.jpg *.jpeg)";
+    QString filter = preset.format == ExportPreset::PNG   ? "PNG (*.png)"
+                      : preset.format == ExportPreset::TIFF16 ? "TIFF (*.tif *.tiff)"
+                                                              : "JPEG (*.jpg *.jpeg)";
 
     QString file = QFileDialog::getSaveFileName(this, "Export image", suggested, filter);
     if (file.isEmpty()) return;
 
-    bool ok = preset.format == ExportPreset::PNG
-                  ? out.save(file, "PNG")
-                  : out.save(file, "JPEG", preset.quality);
+    bool ok = preset.format == ExportPreset::TIFF16 ? writeTiff16(out, file)
+              : preset.format == ExportPreset::PNG  ? out.save(file, "PNG")
+                                                     : out.save(file, "JPEG", preset.quality);
     if (ok)
         m_statusLabel->setText(QString("Exported %1×%2 → %3")
                                    .arg(out.width()).arg(out.height()).arg(file));

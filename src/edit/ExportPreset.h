@@ -7,15 +7,21 @@
 // A named export configuration: output format, an optional long-edge size limit
 // (0 = keep full resolution), and JPEG quality.
 struct ExportPreset {
-    enum Format { JPEG, PNG };
+    enum Format { JPEG, PNG, TIFF16 };
 
     QString name;
     Format format = JPEG;
     int longEdge = 0;   // longer side in px; 0 = full size (never upscales)
-    int quality = 90;   // JPEG quality 1..100 (ignored for PNG)
+    int quality = 90;   // JPEG quality 1..100 (ignored for PNG/TIFF16)
     bool builtIn = false;
 
-    QString extension() const { return format == PNG ? "png" : "jpg"; }
+    QString extension() const {
+        switch (format) {
+        case PNG: return "png";
+        case TIFF16: return "tif";
+        default: return "jpg";
+        }
+    }
 };
 
 // Downscale `img` so its longer edge is at most preset.longEdge (aspect
